@@ -8,6 +8,7 @@ import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -19,9 +20,15 @@ import java.util.List;
  */
 
 public class ExcelGenerator {
+    private String sheetName = "Sheet1";
+
+    public void setSheetName(String sheetName) {
+        this.sheetName = sheetName;
+    }
+
     public XSSFWorkbook generateExcel(List<?> dataList) throws IllegalAccessException {
         XSSFWorkbook workbook = new XSSFWorkbook();
-        XSSFSheet sheet = workbook.createSheet("Sheet1");
+        XSSFSheet sheet = workbook.createSheet(sheetName);
 
         if (dataList.isEmpty()) {
             return workbook;
@@ -83,6 +90,12 @@ public class ExcelGenerator {
 
                     XSSFCell dataCell = dataRow.createCell(colIndex);
                     dataCell.setCellValue(value != null ? value.toString() : "");
+
+                    if (value instanceof LocalDate) {
+                        dataCell.setCellValue(((LocalDate) value).toString());
+                    } else {
+                        dataCell.setCellValue(value != null ? value.toString() : "");
+                    }
 
                     colIndex++;
                 }
