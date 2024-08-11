@@ -28,9 +28,11 @@ public class ExcelGenerator {
         }
 
         int headerRowNum = 0;
-        int dataRowNum = 1;
+        int subHeaderRowNum = 1;
+        int dataRowNum = 2;
 
         XSSFRow headerRow = sheet.createRow(headerRowNum);
+        XSSFRow subHeaderRow = sheet.createRow(subHeaderRowNum);
         XSSFRow dataRow = sheet.createRow(dataRowNum);
 
         Field[] fields = dataList.get(0).getClass().getDeclaredFields();
@@ -41,20 +43,43 @@ public class ExcelGenerator {
             ExcelColumn excelColumn = field.getAnnotation(ExcelColumn.class);
 
             if (excelColumn != null) {
-                XSSFCell cell = headerRow.createCell(colIndex);
-                cell.setCellValue(excelColumn.headerName());
-
                 Object value = field.get(dataList.get(0));
-                XSSFCell dataCell = dataRow.createCell(colIndex);
-                dataCell.setCellValue(value != null ? value.toString() : "");
 
-                if (excelColumn.mergeCells()) {
-                    CellRangeAddress mergeRange = new CellRangeAddress(
-                            headerRowNum, headerRowNum, colIndex, colIndex + 1
-                    );
+                if (excelColumn.isNestedObject() && value != null) {
+                    XSSFCell mergeCell = headerRow.createCell(colIndex);
+                    mergeCell.setCellValue(excelColumn.headerName());
+
+                    Field[] nestedFields = field.getType().getDeclaredFields();
+                    int nestedStartColIndex = colIndex;
+
+                    for (Field nestedField : nestedFields) {
+                        nestedField.setAccessible(true);
+                        XSSFCell nestedHeaderCell = subHeaderRow.createCell(colIndex);
+                        nestedHeaderCell.setCellValue(nestedField.getName());
+
+                        Object nestedValue = nestedField.get(value);
+                        XSSFCell nestedDataCell = dataRow.createCell(colIndex);
+                        nestedDataCell.setCellValue(nestedValue != null ? nestedValue.toString() : "");
+
+                        colIndex++;
+                    }
+
+                    CellRangeAddress mergeRange = new CellRangeAddress(headerRowNum, headerRowNum, nestedStartColIndex, colIndex - 1);
                     sheet.addMergedRegion(mergeRange);
-                    colIndex += 2;
+
                 } else {
+                    XSSFCell cell = headerRow.createCell(colIndex);
+                    cell.setCellValue(excelColumn.headerName());
+
+                    XSSFCell subHeaderCell = subHeaderRow.createCell(colIndex);
+                    subHeaderCell.setCellValue("");
+
+                    XSSFCell dataCell = dataRow.createCell(colIndex);
+                    dataCell.setCellValue(value != null ? value.toString() : "");
+
+                    CellRangeAddress verticalMergeRange = new CellRangeAddress(headerRowNum, subHeaderRowNum, colIndex, colIndex);
+                    sheet.addMergedRegion(verticalMergeRange);
+
                     colIndex++;
                 }
             }
