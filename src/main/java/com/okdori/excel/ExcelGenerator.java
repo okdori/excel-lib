@@ -19,9 +19,9 @@ import java.util.List;
  */
 
 public class ExcelGenerator {
-    public XSSFWorkbook generateExcel(String sheetName, List<?> dataList) throws IllegalAccessException {
+    public XSSFWorkbook generateExcel(List<?> dataList) throws IllegalAccessException {
         XSSFWorkbook workbook = new XSSFWorkbook();
-        XSSFSheet sheet = workbook.createSheet(sheetName);
+        XSSFSheet sheet = workbook.createSheet("Sheet1");
 
         if (dataList.isEmpty()) {
             return workbook;
@@ -45,28 +45,35 @@ public class ExcelGenerator {
             if (excelColumn != null) {
                 Object value = field.get(dataList.get(0));
 
-                if (excelColumn.isNestedObject() && value != null) {
+                if (excelColumn.mergeCells() && value != null) {
                     XSSFCell mergeCell = headerRow.createCell(colIndex);
                     mergeCell.setCellValue(excelColumn.headerName());
 
-                    Field[] nestedFields = field.getType().getDeclaredFields();
-                    int nestedStartColIndex = colIndex;
+                    if (field.getType().isPrimitive() || field.getType().equals(String.class)) {
+                        CellRangeAddress verticalMergeRange = new CellRangeAddress(headerRowNum, subHeaderRowNum, colIndex, colIndex);
+                        sheet.addMergedRegion(verticalMergeRange);
 
-                    for (Field nestedField : nestedFields) {
-                        nestedField.setAccessible(true);
-                        XSSFCell nestedHeaderCell = subHeaderRow.createCell(colIndex);
-                        nestedHeaderCell.setCellValue(nestedField.getName());
+                        XSSFCell dataCell = dataRow.createCell(colIndex);
+                        dataCell.setCellValue(value.toString());
+                    } else {
+                        Field[] nestedFields = value.getClass().getDeclaredFields();
+                        int nestedStartColIndex = colIndex;
 
-                        Object nestedValue = nestedField.get(value);
-                        XSSFCell nestedDataCell = dataRow.createCell(colIndex);
-                        nestedDataCell.setCellValue(nestedValue != null ? nestedValue.toString() : "");
+                        for (Field nestedField : nestedFields) {
+                            nestedField.setAccessible(true);
+                            XSSFCell nestedHeaderCell = subHeaderRow.createCell(colIndex);
+                            nestedHeaderCell.setCellValue(nestedField.getName());
 
-                        colIndex++;
+                            Object nestedValue = nestedField.get(value);
+                            XSSFCell nestedDataCell = dataRow.createCell(colIndex);
+                            nestedDataCell.setCellValue(nestedValue != null ? nestedValue.toString() : "");
+
+                            colIndex++;
+                        }
+
+                        CellRangeAddress horizontalMergeRange = new CellRangeAddress(headerRowNum, headerRowNum, nestedStartColIndex, colIndex - 1);
+                        sheet.addMergedRegion(horizontalMergeRange);
                     }
-
-                    CellRangeAddress mergeRange = new CellRangeAddress(headerRowNum, headerRowNum, nestedStartColIndex, colIndex - 1);
-                    sheet.addMergedRegion(mergeRange);
-
                 } else {
                     XSSFCell cell = headerRow.createCell(colIndex);
                     cell.setCellValue(excelColumn.headerName());
@@ -76,9 +83,6 @@ public class ExcelGenerator {
 
                     XSSFCell dataCell = dataRow.createCell(colIndex);
                     dataCell.setCellValue(value != null ? value.toString() : "");
-
-                    CellRangeAddress verticalMergeRange = new CellRangeAddress(headerRowNum, subHeaderRowNum, colIndex, colIndex);
-                    sheet.addMergedRegion(verticalMergeRange);
 
                     colIndex++;
                 }
