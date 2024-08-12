@@ -1,8 +1,7 @@
 package com.okdori.excel;
 
 import com.okdori.ExcelColumn;
-import com.okdori.resource.ExcelRenderLocation;
-import com.okdori.resource.ExcelRenderResource;
+import com.okdori.resource.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.*;
 
@@ -20,7 +19,6 @@ import java.util.List;
 
 public class ExcelGenerator {
     ExcelRenderResource resource;
-
     private String sheetName = "Sheet1";
 
     public void setSheetName(String sheetName) {
@@ -30,6 +28,8 @@ public class ExcelGenerator {
     public XSSFWorkbook generateExcel(List<?> dataList) throws IllegalAccessException {
         XSSFWorkbook workbook = new XSSFWorkbook();
         XSSFSheet sheet = workbook.createSheet(sheetName);
+
+        resource = ExcelRenderResourceFactory.prepareRenderResource(dataList.getClass(), workbook, new DefaultDataFormatDecider());
 
         if (dataList.isEmpty()) {
             return workbook;
