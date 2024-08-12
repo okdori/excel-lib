@@ -18,26 +18,25 @@ import java.util.List;
  */
 
 public class ExcelGenerator {
-    ExcelRenderResource resource;
     private String sheetName = "Sheet1";
 
     public void setSheetName(String sheetName) {
         this.sheetName = sheetName;
     }
 
-    public XSSFWorkbook generateExcel(List<?> dataList) throws IllegalAccessException {
+    public XSSFWorkbook generateExcel(List<?> dataList, Class<?> clazz) throws IllegalAccessException {
         XSSFWorkbook workbook = new XSSFWorkbook();
         XSSFSheet sheet = workbook.createSheet(sheetName);
 
-        resource = ExcelRenderResourceFactory.prepareRenderResource(dataList.getClass(), workbook, new DefaultDataFormatDecider());
+        ExcelRenderResource resource = ExcelRenderResourceFactory.prepareRenderResource(clazz, workbook, new DefaultDataFormatDecider());
 
         if (dataList.isEmpty()) {
             return workbook;
         }
 
-        int headerRowNum = 0;
-        int subHeaderRowNum = 1;
-        int dataStartRowNum = 2;
+        int headerRowNum = 1;
+        int subHeaderRowNum = 2;
+        int dataStartRowNum = 3;
 
         XSSFRow headerRow = sheet.createRow(headerRowNum);
         XSSFRow subHeaderRow = sheet.createRow(subHeaderRowNum);
@@ -52,13 +51,16 @@ public class ExcelGenerator {
             if (excelColumn != null) {
                 XSSFCell headerCell = headerRow.createCell(colIndex);
                 headerCell.setCellValue(excelColumn.headerName());
-                headerCell.setCellStyle(resource.getCellStyle(excelColumn.headerName(),  ExcelRenderLocation.HEADER));
+                headerCell.setCellStyle(resource.getCellStyle(field.getName(),  ExcelRenderLocation.HEADER));
 
                 if (excelColumn.mergeCells()) {
                     if (field.getType().isPrimitive() || field.getType().equals(String.class)) {
                         CellRangeAddress verticalMergeRange = new CellRangeAddress(headerRowNum, subHeaderRowNum, colIndex, colIndex);
                         sheet.addMergedRegion(verticalMergeRange);
                         colIndex++;
+
+                        XSSFCell subHeaderCell = subHeaderRow.createCell(colIndex - 1);
+                        subHeaderCell.setCellStyle(resource.getCellStyle(field.getName(),  ExcelRenderLocation.HEADER));
                     } else {
                         Field[] nestedFields = field.getType().getDeclaredFields();
                         int nestedStartColIndex = colIndex;
@@ -68,8 +70,12 @@ public class ExcelGenerator {
                             ExcelColumn nestedColumn = nestedField.getAnnotation(ExcelColumn.class);
                             XSSFCell nestedHeaderCell = subHeaderRow.createCell(colIndex);
                             nestedHeaderCell.setCellValue(nestedColumn.headerName());
-                            nestedHeaderCell.setCellStyle(resource.getCellStyle(excelColumn.headerName(),  ExcelRenderLocation.HEADER));
+                            nestedHeaderCell.setCellStyle(resource.getCellStyle(field.getName(),  ExcelRenderLocation.HEADER));
                             colIndex++;
+
+                            XSSFCell horizonHeaderCell = headerRow.createCell(colIndex - 1);
+                            horizonHeaderCell.setCellValue(field.getName());
+                            horizonHeaderCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.HEADER));
                         }
 
                         CellRangeAddress horizontalMergeRange = new CellRangeAddress(headerRowNum, headerRowNum, nestedStartColIndex, colIndex - 1);
@@ -78,7 +84,7 @@ public class ExcelGenerator {
                 } else {
                     XSSFCell subHeaderCell = subHeaderRow.createCell(colIndex);
                     subHeaderCell.setCellValue("");
-                    subHeaderCell.setCellStyle(resource.getCellStyle(excelColumn.headerName(),  ExcelRenderLocation.HEADER));
+                    subHeaderCell.setCellStyle(resource.getCellStyle(field.getName(),  ExcelRenderLocation.HEADER));
                     colIndex++;
                 }
             }
@@ -101,7 +107,7 @@ public class ExcelGenerator {
                     if (excelColumn.mergeCells()) {
                         if (field.getType().isPrimitive() || field.getType().equals(String.class)) {
                             dataCell.setCellValue(value != null ? value.toString() : "");
-                            dataCell.setCellStyle(resource.getCellStyle(excelColumn.headerName(), ExcelRenderLocation.BODY));
+                            dataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
                             colIndex = autoSizeColumn(sheet, colIndex);
                         } else {
                             Field[] nestedFields = value.getClass().getDeclaredFields();
@@ -110,17 +116,17 @@ public class ExcelGenerator {
                                 XSSFCell nestedDataCell = dataRow.createCell(colIndex);
                                 Object nestedValue = nestedField.get(value);
                                 nestedDataCell.setCellValue(nestedValue != null ? nestedValue.toString() : "");
-                                nestedDataCell.setCellStyle(resource.getCellStyle(excelColumn.headerName(), ExcelRenderLocation.BODY));
+                                nestedDataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
                                 colIndex = autoSizeColumn(sheet, colIndex);
                             }
                         }
                     } else {
                         if (value instanceof LocalDate) {
                             dataCell.setCellValue(((LocalDate) value).toString());
-                            dataCell.setCellStyle(resource.getCellStyle(excelColumn.headerName(), ExcelRenderLocation.BODY));
+                            dataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
                         } else {
                             dataCell.setCellValue(value != null ? value.toString() : "");
-                            dataCell.setCellStyle(resource.getCellStyle(excelColumn.headerName(), ExcelRenderLocation.BODY));
+                            dataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
                         }
 
                         colIndex = autoSizeColumn(sheet, colIndex);
