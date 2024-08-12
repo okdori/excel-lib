@@ -36,7 +36,7 @@ public class ExcelGenerator {
 
         XSSFRow row = sheet.createRow(0);
         row.setHeight((short) (17 * 20));
-        sheet.setColumnWidth(0, 17 * 256);
+        sheet.setColumnWidth(0, 2 * 256);
 
         int headerRowNum = 1;
         int subHeaderRowNum = 2;
