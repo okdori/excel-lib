@@ -42,7 +42,7 @@ public class ExcelGenerator {
         XSSFRow subHeaderRow = sheet.createRow(subHeaderRowNum);
 
         Field[] fields = dataList.get(0).getClass().getDeclaredFields();
-        int colIndex = 0;
+        int colIndex = 1;
 
         for (Field field : fields) {
             field.setAccessible(true);
@@ -74,7 +74,7 @@ public class ExcelGenerator {
                             colIndex++;
 
                             XSSFCell horizonHeaderCell = headerRow.createCell(colIndex - 1);
-                            horizonHeaderCell.setCellValue(field.getName());
+                            horizonHeaderCell.setCellValue(excelColumn.headerName());
                             horizonHeaderCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.HEADER));
                         }
 
@@ -94,7 +94,7 @@ public class ExcelGenerator {
             XSSFRow dataRow = sheet.createRow(dataStartRowNum + rowNum);
             Object dataObject = dataList.get(rowNum);
 
-            colIndex = 0;
+            colIndex = 1;
 
             for (Field field : fields) {
                 field.setAccessible(true);
