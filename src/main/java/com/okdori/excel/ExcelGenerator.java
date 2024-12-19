@@ -34,9 +34,9 @@ public class ExcelGenerator {
             return workbook;
         }
 
-        XSSFRow row = sheet.createRow(0);
-        row.setHeight((short) (17 * 20));
-        sheet.setColumnWidth(0, 2 * 256);
+//        XSSFRow row = sheet.createRow(0);
+//        row.setHeight((short) (17 * 20));
+//        sheet.setColumnWidth(0, 2 * 256);
 
         int headerRowNum = 1;
         int subHeaderRowNum = 2;
@@ -46,7 +46,7 @@ public class ExcelGenerator {
         XSSFRow subHeaderRow = sheet.createRow(subHeaderRowNum);
 
         Field[] fields = dataList.get(0).getClass().getDeclaredFields();
-        int colIndex = 1;
+        int colIndex = 0;
 
         for (Field field : fields) {
             field.setAccessible(true);
@@ -58,7 +58,9 @@ public class ExcelGenerator {
                 headerCell.setCellStyle(resource.getCellStyle(field.getName(),  ExcelRenderLocation.HEADER));
 
                 if (excelColumn.mergeCells()) {
-                    if (field.getType().isPrimitive() || field.getType().equals(String.class)) {
+                    if (field.getType().isPrimitive() || field.getType().equals(String.class)
+                        || java.time.temporal.Temporal.class.isAssignableFrom(field.getType())
+                    ) {
                         CellRangeAddress verticalMergeRange = new CellRangeAddress(headerRowNum, subHeaderRowNum, colIndex, colIndex);
                         sheet.addMergedRegion(verticalMergeRange);
                         colIndex++;
@@ -98,7 +100,7 @@ public class ExcelGenerator {
             XSSFRow dataRow = sheet.createRow(dataStartRowNum + rowNum);
             Object dataObject = dataList.get(rowNum);
 
-            colIndex = 1;
+            colIndex = 0;
 
             for (Field field : fields) {
                 field.setAccessible(true);
