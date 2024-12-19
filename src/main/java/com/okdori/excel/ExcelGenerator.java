@@ -67,6 +67,7 @@ public class ExcelGenerator {
                 if (excelColumn.mergeCells()) {
                     if (field.getType().isPrimitive() || field.getType().equals(String.class)
                             || java.time.temporal.Temporal.class.isAssignableFrom(field.getType())
+                            || Number.class.isAssignableFrom(field.getType())
                     ) {
                         CellRangeAddress verticalMergeRange = new CellRangeAddress(headerRowNum, subHeaderRowNum, colIndex, colIndex);
                         sheet.addMergedRegion(verticalMergeRange);
@@ -120,6 +121,7 @@ public class ExcelGenerator {
                     if (excelColumn.mergeCells()) {
                         if (field.getType().isPrimitive() || field.getType().equals(String.class)
                                 || java.time.temporal.Temporal.class.isAssignableFrom(field.getType())
+                                || Number.class.isAssignableFrom(field.getType())
                         ) {
                             dataCell.setCellValue(value != null ? value.toString() : "");
                             dataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
