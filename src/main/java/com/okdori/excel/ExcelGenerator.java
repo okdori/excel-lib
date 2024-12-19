@@ -19,10 +19,15 @@ import java.util.List;
 
 public class ExcelGenerator {
     private String sheetName = "Sheet1";
+//    private int excludeColumn = 0;
 
     public void setSheetName(String sheetName) {
         this.sheetName = sheetName;
     }
+
+//    public void setExcludeColumn(int excludeColumn) {
+//        this.excludeColumn = excludeColumn;
+//    }
 
     public XSSFWorkbook generateExcel(List<?> dataList, Class<?> clazz) throws IllegalAccessException {
         XSSFWorkbook workbook = new XSSFWorkbook();
@@ -34,13 +39,15 @@ public class ExcelGenerator {
             return workbook;
         }
 
-//        XSSFRow row = sheet.createRow(0);
-//        row.setHeight((short) (17 * 20));
-//        sheet.setColumnWidth(0, 2 * 256);
+//        if (excludeColumn > 0) {
+//            XSSFRow row = sheet.createRow(0);
+//            row.setHeight((short) (17 * 20));
+//            sheet.setColumnWidth(0, 2 * 256);
+//        }
 
-        int headerRowNum = 1;
-        int subHeaderRowNum = 2;
-        int dataStartRowNum = 3;
+        int headerRowNum = 0;
+        int subHeaderRowNum = 1;
+        int dataStartRowNum = 2;
 
         XSSFRow headerRow = sheet.createRow(headerRowNum);
         XSSFRow subHeaderRow = sheet.createRow(subHeaderRowNum);
@@ -59,7 +66,7 @@ public class ExcelGenerator {
 
                 if (excelColumn.mergeCells()) {
                     if (field.getType().isPrimitive() || field.getType().equals(String.class)
-                        || java.time.temporal.Temporal.class.isAssignableFrom(field.getType())
+                            || java.time.temporal.Temporal.class.isAssignableFrom(field.getType())
                     ) {
                         CellRangeAddress verticalMergeRange = new CellRangeAddress(headerRowNum, subHeaderRowNum, colIndex, colIndex);
                         sheet.addMergedRegion(verticalMergeRange);
@@ -111,19 +118,32 @@ public class ExcelGenerator {
                     Object value = field.get(dataObject);
 
                     if (excelColumn.mergeCells()) {
-                        if (field.getType().isPrimitive() || field.getType().equals(String.class)) {
+                        if (field.getType().isPrimitive() || field.getType().equals(String.class)
+                                || java.time.temporal.Temporal.class.isAssignableFrom(field.getType())
+                        ) {
                             dataCell.setCellValue(value != null ? value.toString() : "");
                             dataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
                             colIndex = autoSizeColumn(sheet, colIndex);
                         } else {
-                            Field[] nestedFields = value.getClass().getDeclaredFields();
-                            for (Field nestedField : nestedFields) {
-                                nestedField.setAccessible(true);
-                                XSSFCell nestedDataCell = dataRow.createCell(colIndex);
-                                Object nestedValue = nestedField.get(value);
-                                nestedDataCell.setCellValue(nestedValue != null ? nestedValue.toString() : "");
-                                nestedDataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
-                                colIndex = autoSizeColumn(sheet, colIndex);
+                            if (value != null) {
+                                Field[] nestedFields = value.getClass().getDeclaredFields();
+                                for (Field nestedField : nestedFields) {
+                                    nestedField.setAccessible(true);
+                                    XSSFCell nestedDataCell = dataRow.createCell(colIndex);
+                                    Object nestedValue = nestedField.get(value);
+                                    nestedDataCell.setCellValue(nestedValue != null ? nestedValue.toString() : "");
+                                    nestedDataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
+                                    colIndex = autoSizeColumn(sheet, colIndex);
+                                }
+                            } else {
+                                Field[] emptyFields = field.getType().getDeclaredFields();
+                                for (Field emptyField : emptyFields) {
+                                    emptyField.setAccessible(true);
+                                    XSSFCell nestedDataCell = dataRow.createCell(colIndex);
+                                    nestedDataCell.setCellValue("");
+                                    nestedDataCell.setCellStyle(resource.getCellStyle(field.getName(), ExcelRenderLocation.BODY));
+                                    colIndex = autoSizeColumn(sheet, colIndex);
+                                }
                             }
                         }
                     } else {
