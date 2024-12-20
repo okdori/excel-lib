@@ -29,6 +29,7 @@ import java.util.*;
 public class ExcelGenerator {
     private static final int FLUSH_THRESHOLD = 1000;
     private static final int WINDOW_SIZE = 1000;
+    private static final int DEFAULT_HEIGHT = 17;
     private String sheetName = "Sheet1";
     private SXSSFWorkbook workbook;
 
@@ -144,7 +145,35 @@ public class ExcelGenerator {
     private void createHeaders(Sheet sheet, List<FieldInfo> fieldInfos, ExcelRenderResource resource) {
         Row headerRow = sheet.createRow(0);
         Row subHeaderRow = sheet.createRow(1);
+
+        headerRow.setHeight((short)(DEFAULT_HEIGHT * 20));
+        subHeaderRow.setHeight((short)(DEFAULT_HEIGHT * 20));
+
         int colIndex = 0;
+        int maxHeaderLines = 1;
+        int maxSubHeaderLines = 1;
+
+        for (FieldInfo fieldInfo : fieldInfos) {
+            if (fieldInfo.annotation.mergeCells()) {
+                if (fieldInfo.isPrimitiveOrSimple) {
+                    String headerText = fieldInfo.annotation.headerName();
+                    maxHeaderLines = Math.max(maxHeaderLines, headerText.split("\n").length);
+                } else {
+                    for (FieldInfo nestedField : fieldInfo.nestedFields) {
+                        String subHeaderText = nestedField.annotation.headerName();
+                        maxSubHeaderLines = Math.max(maxSubHeaderLines, subHeaderText.split("\n").length);
+                    }
+                    String headerText = fieldInfo.annotation.headerName();
+                    maxHeaderLines = Math.max(maxHeaderLines, headerText.split("\n").length);
+                }
+            } else {
+                String headerText = fieldInfo.annotation.headerName();
+                maxHeaderLines = Math.max(maxHeaderLines, headerText.split("\n").length);
+            }
+        }
+
+        headerRow.setHeight((short)(DEFAULT_HEIGHT * 20 * maxHeaderLines));
+        subHeaderRow.setHeight((short)(DEFAULT_HEIGHT * 20 * maxSubHeaderLines));
 
         for (FieldInfo fieldInfo : fieldInfos) {
             if (fieldInfo.annotation.mergeCells()) {
@@ -166,22 +195,19 @@ public class ExcelGenerator {
         Cell headerCell = headerRow.createCell(colIndex);
 
         String headerText = fieldInfo.annotation.headerName();
-        headerCell.setCellValue(createRichTextString(headerText));  // remove workbook parameter
+        headerCell.setCellValue(createRichTextString(headerText));
 
         CellStyle headerStyle = resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER);
         headerStyle.setWrapText(true);
         headerCell.setCellStyle(headerStyle);
 
         Cell subHeaderCell = subHeaderRow.createCell(colIndex);
-        subHeaderCell.setCellStyle(resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER));
+        CellStyle subHeaderStyle = resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER);
+        subHeaderStyle.setWrapText(true);
+        subHeaderCell.setCellStyle(subHeaderStyle);
 
         if (fieldInfo.annotation.mergeCells()) {
             sheet.addMergedRegion(new CellRangeAddress(0, 1, colIndex, colIndex));
-        }
-
-        if (headerText.contains("\n")) {
-            int numberOfLines = headerText.split("\n").length;
-            headerRow.setHeight((short)(numberOfLines * headerRow.getHeight()));
         }
     }
 
@@ -192,7 +218,7 @@ public class ExcelGenerator {
         for (FieldInfo nestedField : fieldInfo.nestedFields) {
             Cell subHeaderCell = subHeaderRow.createCell(colIndex);
             String subHeaderText = nestedField.annotation.headerName();
-            subHeaderCell.setCellValue(createRichTextString(subHeaderText));  // remove workbook parameter
+            subHeaderCell.setCellValue(createRichTextString(subHeaderText));
 
             CellStyle subHeaderStyle = resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER);
             subHeaderStyle.setWrapText(true);
@@ -200,20 +226,11 @@ public class ExcelGenerator {
 
             Cell headerCell = headerRow.createCell(colIndex);
             String headerText = fieldInfo.annotation.headerName();
-            headerCell.setCellValue(createRichTextString(headerText));  // remove workbook parameter
+            headerCell.setCellValue(createRichTextString(headerText));
 
             CellStyle headerStyle = resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER);
             headerStyle.setWrapText(true);
             headerCell.setCellStyle(headerStyle);
-
-            if (subHeaderText.contains("\n")) {
-                int numberOfLines = subHeaderText.split("\n").length;
-                subHeaderRow.setHeight((short)(numberOfLines * subHeaderRow.getHeight()));
-            }
-            if (headerText.contains("\n")) {
-                int numberOfLines = headerText.split("\n").length;
-                headerRow.setHeight((short)(numberOfLines * headerRow.getHeight()));
-            }
 
             colIndex++;
         }
