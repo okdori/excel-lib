@@ -314,15 +314,44 @@ public class ExcelGenerator {
 
     private void optimizeColumnWidths(Sheet sheet, List<FieldInfo> fieldInfos) {
         int totalColumns = getTotalColumnCount(fieldInfos);
+        SXSSFSheet sxssfSheet = (SXSSFSheet) sheet;
+
+        Row headerRow = sheet.getRow(0);
+        Row subHeaderRow = sheet.getRow(1);
+        boolean hasSubHeader = hasSubHeaders(fieldInfos);
+
+        int totalRows = sheet.getLastRowNum();
+        int sampleSize = 1000;
+        int samplingInterval = Math.max(1, totalRows / sampleSize);
+
         for (int i = 0; i < totalColumns; i++) {
             try {
-                sheet.autoSizeColumn(i);
+                int maxWidth = 0;
+
+                if (headerRow != null && headerRow.getCell(i) != null) {
+                    maxWidth = getContentWidth(headerRow.getCell(i).toString());
+                }
+                if (hasSubHeader && subHeaderRow != null && subHeaderRow.getCell(i) != null) {
+                    maxWidth = Math.max(maxWidth, getContentWidth(subHeaderRow.getCell(i).toString()));
+                }
+
+                int startRow = hasSubHeader ? 2 : 1;
+                for (int rowNum = startRow; rowNum <= totalRows; rowNum += samplingInterval) {
+                    Row row = sheet.getRow(rowNum);
+                    if (row != null && row.getCell(i) != null) {
+                        int width = getContentWidth(row.getCell(i).toString());
+                        maxWidth = Math.max(maxWidth, width);
+                    }
+                }
+
+                maxWidth = Math.max(8, Math.min(50, maxWidth));
+                sheet.setColumnWidth(i, 256 * maxWidth);
 
                 if (i % 10 == 0) {
-                    ((SXSSFSheet)sheet).flushRows();
+                    sxssfSheet.flushRows();
                 }
             } catch (Exception e) {
-                sheet.setColumnWidth(i, 256 * 15); // default set width
+                sheet.setColumnWidth(i, 256 * 15);
             }
         }
     }
@@ -337,6 +366,24 @@ public class ExcelGenerator {
             }
         }
         return count;
+    }
+
+    private int getContentWidth(String content) {
+        int width = 0;
+        for (char c : content.toCharArray()) {
+            if (Character.UnicodeBlock.of(c) == Character.UnicodeBlock.HANGUL_SYLLABLES) {
+                width += 2;
+            } else {
+                width += 1;
+            }
+        }
+        return width;
+    }
+
+    private boolean hasSubHeaders(List<FieldInfo> fieldInfos) {
+        return fieldInfos.stream()
+                .anyMatch(fieldInfo -> fieldInfo.getAnnotation().mergeCells()
+                        && !fieldInfo.isPrimitiveOrSimple());
     }
 
     public void dispose() {
