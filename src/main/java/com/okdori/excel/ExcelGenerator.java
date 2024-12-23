@@ -5,6 +5,7 @@ import com.okdori.resource.*;
 import com.okdori.utils.TypeUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import lombok.Getter;
 import lombok.Setter;
@@ -314,7 +315,15 @@ public class ExcelGenerator {
     private void optimizeColumnWidths(Sheet sheet, List<FieldInfo> fieldInfos) {
         int totalColumns = getTotalColumnCount(fieldInfos);
         for (int i = 0; i < totalColumns; i++) {
-            sheet.setColumnWidth(i, 256 * 15);
+            try {
+                sheet.autoSizeColumn(i);
+
+                if (i % 10 == 0) {
+                    ((SXSSFSheet)sheet).flushRows();
+                }
+            } catch (Exception e) {
+                sheet.setColumnWidth(i, 256 * 15); // default set width
+            }
         }
     }
 
