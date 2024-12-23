@@ -344,7 +344,7 @@ public class ExcelGenerator {
                     }
                 }
 
-                maxWidth = Math.max(8, Math.min(50, maxWidth));
+                maxWidth = Math.max(8, Math.min(200, maxWidth));
                 sheet.setColumnWidth(i, 256 * maxWidth);
 
                 if (i % 10 == 0) {
