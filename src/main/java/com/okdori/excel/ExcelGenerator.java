@@ -350,7 +350,7 @@ public class ExcelGenerator {
 
         for (int i = 0; i < totalColumns; i++) {
             try {
-                int finalWidth = Math.max(4 * 256, Math.min(20 * 256, maxWidths[i]));
+                int finalWidth = Math.max(4 * 256, Math.min(50 * 256, maxWidths[i]));
                 sheet.setColumnWidth(i, finalWidth);
             } catch (Exception e) {
                 sheet.setColumnWidth(i, 256 * 15);
