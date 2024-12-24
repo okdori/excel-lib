@@ -53,7 +53,7 @@ public class ExcelGenerator {
         }
     }
 
-    public Workbook generateExcel(List<?> dataList, Class<?> clazz) throws IllegalAccessException {
+    public Workbook generateExcel(List<?> dataList, Class<?> clazz) throws IllegalAccessException, IOException {
         initializeWorkbook(dataList);
         if (dataList.isEmpty()) {
             return this.workbook;
@@ -62,8 +62,9 @@ public class ExcelGenerator {
         Sheet sheet = createAndConfigureSheet();
         ExcelRenderResource resource = prepareRenderResource(clazz);
         List<FieldInfo> fieldInfos = analyzeClass(clazz);
+        Map<Integer, Integer> columnWidths = new HashMap<>();
 
-        processExcelGeneration(sheet, dataList, fieldInfos, resource);
+        processExcelGeneration(sheet, dataList, fieldInfos, resource, columnWidths);
 
         return this.workbook;
     }
@@ -135,15 +136,16 @@ public class ExcelGenerator {
         return fieldInfo.getAnnotation().mergeCells() && !fieldInfo.isPrimitiveOrSimple();
     }
 
-    private void processExcelGeneration(Sheet sheet, List<?> dataList,
-                                        List<FieldInfo> fieldInfos,
-                                        ExcelRenderResource resource) throws IllegalAccessException {
-        createHeaders(sheet, fieldInfos, resource);
+    private void processExcelGeneration(Sheet sheet, List<?> dataList, List<FieldInfo> fieldInfos,
+                                        ExcelRenderResource resource, Map<Integer, Integer> columnWidths
+    ) throws IllegalAccessException, IOException {
+        createHeaders(sheet, fieldInfos, resource, columnWidths);
         processDataRows(sheet, dataList, fieldInfos, resource);
-        optimizeColumnWidths(sheet, fieldInfos);
+        optimizeColumnWidths(sheet, fieldInfos, columnWidths);
     }
 
-    private void createHeaders(Sheet sheet, List<FieldInfo> fieldInfos, ExcelRenderResource resource) {
+    private void createHeaders(Sheet sheet, List<FieldInfo> fieldInfos, ExcelRenderResource resource,
+                               Map<Integer, Integer> columnWidths) {
         Row headerRow = sheet.createRow(0);
         Row subHeaderRow = sheet.createRow(1);
 
@@ -179,23 +181,25 @@ public class ExcelGenerator {
         for (FieldInfo fieldInfo : fieldInfos) {
             if (fieldInfo.annotation.mergeCells()) {
                 if (fieldInfo.isPrimitiveOrSimple) {
-                    createSimpleHeaderCell(sheet, headerRow, subHeaderRow, colIndex, fieldInfo, resource);
+                    createSimpleHeaderCell(sheet, headerRow, subHeaderRow, colIndex, fieldInfo, resource, columnWidths);
                     colIndex++;
                 } else {
-                    colIndex = createNestedHeaderCells(sheet, headerRow, subHeaderRow, colIndex, fieldInfo, resource);
+                    colIndex = createNestedHeaderCells(sheet, headerRow, subHeaderRow, colIndex, fieldInfo, resource, columnWidths);
                 }
             } else {
-                createSimpleHeaderCell(sheet, headerRow, subHeaderRow, colIndex, fieldInfo, resource);
+                createSimpleHeaderCell(sheet, headerRow, subHeaderRow, colIndex, fieldInfo, resource, columnWidths);
                 colIndex++;
             }
         }
     }
 
     private void createSimpleHeaderCell(Sheet sheet, Row headerRow, Row subHeaderRow,
-                                        int colIndex, FieldInfo fieldInfo, ExcelRenderResource resource) {
+                                        int colIndex, FieldInfo fieldInfo, ExcelRenderResource resource,
+                                        Map<Integer, Integer> columnWidths) {
         Cell headerCell = headerRow.createCell(colIndex);
 
         String headerText = fieldInfo.annotation.headerName();
+        columnWidths.put(colIndex, getContentWidth(headerText));
         headerCell.setCellValue(createRichTextString(headerText));
 
         CellStyle headerStyle = resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER);
@@ -213,12 +217,14 @@ public class ExcelGenerator {
     }
 
     private int createNestedHeaderCells(Sheet sheet, Row headerRow, Row subHeaderRow,
-                                        int colIndex, FieldInfo fieldInfo, ExcelRenderResource resource) {
+                                        int colIndex, FieldInfo fieldInfo, ExcelRenderResource resource,
+                                        Map<Integer, Integer> columnWidths) {
         int startColIndex = colIndex;
 
         for (FieldInfo nestedField : fieldInfo.nestedFields) {
             Cell subHeaderCell = subHeaderRow.createCell(colIndex);
             String subHeaderText = nestedField.annotation.headerName();
+            columnWidths.put(colIndex, getContentWidth(subHeaderText));
             subHeaderCell.setCellValue(createRichTextString(subHeaderText));
 
             CellStyle subHeaderStyle = resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER);
@@ -312,44 +318,40 @@ public class ExcelGenerator {
         return colIndex;
     }
 
-    private void optimizeColumnWidths(Sheet sheet, List<FieldInfo> fieldInfos) {
+    private void optimizeColumnWidths(Sheet sheet, List<FieldInfo> fieldInfos,
+                                      Map<Integer, Integer> columnWidths) throws IOException {
         int totalColumns = getTotalColumnCount(fieldInfos);
         SXSSFSheet sxssfSheet = (SXSSFSheet) sheet;
 
-        Row headerRow = sheet.getRow(0);
-        Row subHeaderRow = sheet.getRow(1);
-        boolean hasSubHeader = hasSubHeaders(fieldInfos);
+        int lastRowNum = sheet.getLastRowNum();
+        int startRow = Math.max(2, lastRowNum - WINDOW_SIZE);
 
-        int totalRows = sheet.getLastRowNum();
-        int sampleSize = 1000;
-        int samplingInterval = Math.max(1, totalRows / sampleSize);
+        int[] maxWidths = new int[totalColumns];
+        for (int i = 0; i < totalColumns; i++) {
+            maxWidths[i] = columnWidths.getOrDefault(i, 4 * 256);
+        }
+
+        for (int rowNum = startRow; rowNum <= lastRowNum; rowNum++) {
+            Row row = sheet.getRow(rowNum);
+            if (row != null) {
+                for (int i = 0; i < totalColumns; i++) {
+                    Cell cell = row.getCell(i);
+                    if (cell != null) {
+                        int width = getContentWidth(cell.toString());
+                        maxWidths[i] = Math.max(maxWidths[i], width);
+                    }
+                }
+            }
+
+            if (rowNum % FLUSH_THRESHOLD == 0) {
+                sxssfSheet.flushRows();
+            }
+        }
 
         for (int i = 0; i < totalColumns; i++) {
             try {
-                int maxWidth = 0;
-
-                if (headerRow != null && headerRow.getCell(i) != null) {
-                    maxWidth = getContentWidth(headerRow.getCell(i).toString());
-                }
-                if (hasSubHeader && subHeaderRow != null && subHeaderRow.getCell(i) != null) {
-                    maxWidth = Math.max(maxWidth, getContentWidth(subHeaderRow.getCell(i).toString()));
-                }
-
-                int startRow = hasSubHeader ? 2 : 1;
-                for (int rowNum = startRow; rowNum <= totalRows; rowNum += samplingInterval) {
-                    Row row = sheet.getRow(rowNum);
-                    if (row != null && row.getCell(i) != null) {
-                        int width = getContentWidth(row.getCell(i).toString());
-                        maxWidth = Math.max(maxWidth, width);
-                    }
-                }
-
-                maxWidth = Math.max(8, Math.min(200, maxWidth));
-                sheet.setColumnWidth(i, 256 * maxWidth);
-
-                if (i % 10 == 0) {
-                    sxssfSheet.flushRows();
-                }
+                int finalWidth = Math.max(4 * 256, Math.min(20 * 256, maxWidths[i]));
+                sheet.setColumnWidth(i, finalWidth);
             } catch (Exception e) {
                 sheet.setColumnWidth(i, 256 * 15);
             }
@@ -369,31 +371,26 @@ public class ExcelGenerator {
     }
 
     private int getContentWidth(String content) {
-        int width = 0;
+        if (content == null || content.isEmpty()) {
+            return 4 * 256;
+        }
+
+        if (content.contains("\n")) {
+            content = Arrays.stream(content.split("\n"))
+                    .max(Comparator.comparingInt(String::length))
+                    .orElse("");
+        }
+
+        int width = 2;
         for (char c : content.toCharArray()) {
-            if (Character.UnicodeBlock.of(c) == Character.UnicodeBlock.HANGUL_SYLLABLES) {
+            if (Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN ||
+                    Character.UnicodeScript.of(c) == Character.UnicodeScript.HANGUL) {
                 width += 2;
             } else {
                 width += 1;
             }
         }
-        return width;
-    }
 
-    private boolean hasSubHeaders(List<FieldInfo> fieldInfos) {
-        return fieldInfos.stream()
-                .anyMatch(fieldInfo -> fieldInfo.getAnnotation().mergeCells()
-                        && !fieldInfo.isPrimitiveOrSimple());
-    }
-
-    public void dispose() {
-        if (this.workbook != null) {
-            this.workbook.dispose();
-            try {
-                this.workbook.close();
-            } catch (IOException e) {
-                // pass
-            }
-        }
+        return width * 256;
     }
 }
