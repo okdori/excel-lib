@@ -249,13 +249,15 @@ public class ExcelGenerator {
         headerStyle.setWrapText(true);
         headerCell.setCellStyle(headerStyle);
 
-        Cell subHeaderCell = subHeaderRow.createCell(colIndex);
-        CellStyle subHeaderStyle = resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER);
-        subHeaderStyle.setWrapText(true);
-        subHeaderCell.setCellStyle(subHeaderStyle);
-
         if (fieldInfo.annotation.mergeCells()) {
+            Cell subHeaderCell = subHeaderRow.createCell(colIndex);
+            CellStyle subHeaderStyle = resource.getCellStyle(fieldInfo.field.getName(), ExcelRenderLocation.HEADER);
+            subHeaderStyle.setWrapText(true);
+            subHeaderCell.setCellStyle(subHeaderStyle);
+
             sheet.addMergedRegion(new CellRangeAddress(0, 1, colIndex, colIndex));
+        } else {
+            sheet.removeRow(subHeaderRow);
         }
     }
 
@@ -302,10 +304,11 @@ public class ExcelGenerator {
 
     private void processDataRows(Sheet sheet, List<?> dataList, List<FieldInfo> fieldInfos,
                                  ExcelRenderResource resource) throws IllegalAccessException {
-        int rowCount = 0;
+        boolean hasSubHeader = sheet.getLastRowNum() > 0;
+        int rowCount = hasSubHeader ? 2 : 1;
 
         for (Object dataObject : dataList) {
-            Row dataRow = sheet.createRow(rowCount + 2);
+            Row dataRow = sheet.createRow(rowCount);
             int colIndex = 0;
 
             for (FieldInfo fieldInfo : fieldInfos) {
