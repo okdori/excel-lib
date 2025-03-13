@@ -53,6 +53,23 @@ public class ExcelGenerator {
         }
     }
 
+    @Getter
+    public static class SheetInfo<T> {
+        private final String sheetName;
+        private final List<T> data;
+        private final Class<T> clazz;
+
+        private SheetInfo(String sheetName, List<T> data, Class<T> clazz) {
+            this.sheetName = sheetName;
+            this.data = data;
+            this.clazz = clazz;
+        }
+
+        public static <T> SheetInfo<T> create(String sheetName, List<T> data, Class<T> clazz) {
+            return new SheetInfo<>(sheetName, data, clazz);
+        }
+    }
+
     public Workbook generateExcel(List<?> dataList, Class<?> clazz) throws IllegalAccessException, IOException {
         initializeWorkbook(dataList);
         if (dataList.isEmpty()) {
@@ -65,6 +82,32 @@ public class ExcelGenerator {
         Map<Integer, Integer> columnWidths = new HashMap<>();
 
         processExcelGeneration(sheet, dataList, fieldInfos, resource, columnWidths);
+
+        return this.workbook;
+    }
+
+    public Workbook generateMultiSheetExcel(List<SheetInfo<?>> sheetInfos) throws IllegalAccessException, IOException {
+        this.workbook = new SXSSFWorkbook(WINDOW_SIZE);
+        this.workbook.setCompressTempFiles(true);
+
+        for (SheetInfo<?> config : sheetInfos) {
+            String sheetName = config.getSheetName();
+            List<?> dataList = config.getData();
+            Class<?> clazz = config.getClazz();
+
+            this.sheetName = sheetName;
+
+            if (!dataList.isEmpty()) {
+                Sheet sheet = createAndConfigureSheet();
+                ExcelRenderResource resource = prepareRenderResource(clazz);
+                List<FieldInfo> fieldInfos = analyzeClass(clazz);
+                Map<Integer, Integer> columnWidths = new HashMap<>();
+
+                processExcelGeneration(sheet, dataList, fieldInfos, resource, columnWidths);
+            } else {
+                workbook.createSheet(sheetName);
+            }
+        }
 
         return this.workbook;
     }
